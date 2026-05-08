@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Smart Bus Transport System</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+  <style>
+  body {
+    margin:0;
+    font-family:'Segoe UI', sans-serif;
+    background:#f5f5f5;
+  }
+
+  #map {
+    height:100vh;
+    filter: brightness(1) contrast(1);
+  }
+
+  /* 🌫️ GLASS PANEL (LEFT) */
+  .panel {
+    position:absolute;
+    top:20px;
+    left:20px;
+    width:280px;
+    padding:15px;
+    z-index:1000;
+
+    background: rgba(255, 255, 255, 0.35);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+
+    border-radius:16px;
+    border:1px solid rgba(255,255,255,0.6);
+
+    color:#111;
+    box-shadow:0 8px 30px rgba(0,0,0,0.15);
+  }
+
+  /* 🌫️ GLASS PANEL (RIGHT) */
+  .schedule {
+    position:absolute;
+    top:20px;
+    right:20px;
+    padding:12px;
+    z-index:1000;
+
+    background: rgba(255, 255, 255, 0.35);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+
+    border-radius:16px;
+    border:1px solid rgba(255,255,255,0.6);
+
+    color:#111;
+    box-shadow:0 8px 30px rgba(0,0,0,0.15);
+  }
+
+  /* 📊 ROUTE CARD */
+  .route-card {
+    margin-top:10px;
+    padding:10px;
+    background: rgba(255,255,255,0.4);
+    border-radius:10px;
+    border-left:4px solid #0077ff;
+  }
+
+  /* 🔽 DROPDOWN */
+  select {
+    padding:6px;
+    border-radius:8px;
+    background: rgba(255,255,255,0.6);
+    border:1px solid rgba(0,0,0,0.2);
+    color:#000;
+  }
+
+  /* 🚌 BUS GLOW */
+  .glow-bus {
+    filter: drop-shadow(0 0 4px rgba(0,0,0,0.4));
+  }
+</style>
+</head>
+
+<body>
+
+<div class="panel" id="infoPanel">
+  <h3>🚌 Smart Transport</h3>
+  Click map → Start & End
+</div>
+
+<div class="schedule">
+  <b>🧾 Bus Schedule</b><br>
+  <select id="routeSelect" onchange="showSchedule()">
+    <option>Select Route</option>
+  </select>
+  <div id="scheduleInfo"></div>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+// Your specific Base64 API Key
+const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6Ijg4ZWRmNjhmZjM0NTQ2NzRiZDVkM2ZjMzY5YWFlMzMwIiwiaCI6Im11cm11cjY0In0=";
+
+// MAP
+var map = L.map('map').setView([18.5204, 73.8567], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+// ICONS
+const busIcon = L.icon({
+  iconUrl:"https://cdn-icons-png.flaticon.com/512/61/61231.png",
+  iconSize:[30,30],
+  className:"glow-bus"
+});
+
+const stopIcon = L.icon({
+  iconUrl:"https://cdn-icons-png.flaticon.com/512/684/684908.png",
+  iconSize:[22,22]
+});
+
+// STOPS (FULL LIST)
+const stops = [
+  {name:"Shivajinagar", lat:18.5308, lng:73.8475},
+  {name:"Pune Station", lat:18.5286, lng:73.8740},
+  {name:"Deccan", lat:18.5174, lng:73.8430},
+  {name:"Swargate", lat:18.5010, lng:73.8636},
+  {name:"Aundh", lat:18.5615, lng:73.8077},
+  {name:"Baner", lat:18.5590, lng:73.7868},
+  {name:"Pashan", lat:18.5410, lng:73.7930},
+  {name:"Kharadi", lat:18.5519, lng:73.9416},
+  {name:"Viman Nagar", lat:18.5679, lng:73.9143},
+  {name:"Wagholi", lat:18.5800, lng:73.9800},
+  {name:"Katraj", lat:18.4510, lng:73.8580},
+  {name:"Kondhwa", lat:18.4650, lng:73.8900},
+  {name:"Hadapsar", lat:18.5089, lng:73.9260},
+  {name:"Pimpri", lat:18.6298, lng:73.7997},
+  {name:"Chinchwad", lat:18.6270, lng:73.7810},
+  {name:"Bhosari", lat:18.6290, lng:73.8500},
+  {name:"Magarpatta", lat:18.5167, lng:73.9270},
+  {name:"Hinjewadi", lat:18.5910, lng:73.7389},
+  {name:"Nigdi", lat:18.6510, lng:73.7700},
+  {name:"Dhayari", lat:18.4460, lng:73.8070},
+  {name:"Sinhagad Road", lat:18.4570, lng:73.8075},
+  {name:"Yerwada", lat:18.5500, lng:73.8890},
+  {name:"Lohegaon", lat:18.5820, lng:73.9150},
+  {name:"Camp", lat:18.5160, lng:73.8800},
+  {name:"FC Road", lat:18.5230, lng:73.8410}
+];
+
+// ROUTES (Isolated stops Kondhwa and Lohegaon added into the network)
+const busRoutes = [
+  ["Hinjewadi","Baner","Aundh","Shivajinagar","FC Road","Deccan"],
+  ["Shivajinagar","Pune Station","Camp","Swargate","Kondhwa","Katraj"], 
+  ["Pune Station","Yerwada","Viman Nagar","Lohegaon","Kharadi","Wagholi"], 
+  ["Swargate","Hadapsar","Magarpatta","Kharadi"],
+  ["Shivajinagar","Pimpri","Chinchwad","Nigdi"],
+  ["Pimpri","Bhosari","Viman Nagar"],
+  ["Deccan","Sinhagad Road","Dhayari"],
+  ["Aundh","Pashan","Baner"],
+  ["FC Road","Deccan","Shivajinagar","Pune Station","Camp","FC Road"]
+];
+
+// DRAW ALL ROUTES (GREY)
+busRoutes.forEach(route=>{
+  let coords=route.map(n=>{
+    let s=stops.find(x=>x.name===n);
+    return [s.lat,s.lng];
+  });
+
+  L.polyline(coords,{
+    color:"#555",
+    weight:2,
+    dashArray:"5,5"
+  }).addTo(map);
+});
+
+// DRAW STOPS
+stops.forEach(s=>{
+  L.marker([s.lat,s.lng],{icon:stopIcon})
+    .addTo(map).bindPopup("🚌 "+s.name);
+});
+
+// SCHEDULE
+busRoutes.forEach((r,i)=>{
+  let opt=document.createElement("option");
+  opt.value=i;
+  opt.text="Route "+(i+1);
+  document.getElementById("routeSelect").appendChild(opt);
+});
+
+function showSchedule(){
+  document.getElementById("scheduleInfo").innerHTML="Every 15 mins";
+}
+
+// HELPERS
+function distance(a,b){
+  return Math.sqrt((a.lat-b.lat)**2 + (a.lng-b.lng)**2);
+}
+
+function findNearestStop(p){
+  return stops.reduce((prev,curr)=>{
+    return distance({lat:p[1],lng:p[0]},curr) <
+           distance({lat:p[1],lng:p[0]},prev) ? curr : prev;
+  });
+}
+
+// GRAPH
+function buildGraph(){
+  let g={};
+  stops.forEach(s=>g[s.name]=[]);
+  busRoutes.forEach(r=>{
+    for(let i=0;i<r.length-1;i++){
+      let a=r[i],b=r[i+1];
+      let A=stops.find(s=>s.name===a);
+      let B=stops.find(s=>s.name===b);
+      let d=distance(A,B);
+      g[a].push({node:b,weight:d});
+      g[b].push({node:a,weight:d});
+    }
+  });
+  return g;
+}
+
+// DIJKSTRA
+function dijkstra(g,start,end){
+  let dist={},prev={},vis=new Set();
+  Object.keys(g).forEach(n=>dist[n]=Infinity);
+  dist[start]=0;
+
+  while(true){
+    let u=null;
+    Object.keys(dist).forEach(n=>{
+      if(!vis.has(n)&&(u==null||dist[n]<dist[u])) u=n;
+    });
+    if(u==null||u==end) break;
+    vis.add(u);
+
+    g[u].forEach(nb=>{
+      let nd=dist[u]+nb.weight;
+      if(nd<dist[nb.node]){
+        dist[nb.node]=nd;
+        prev[nb.node]=u;
+      }
+    });
+  }
+
+  let path=[],cur=end;
+  while(cur){ path.unshift(cur); cur=prev[cur]; }
+  return path;
+}
+
+// INPUT
+let start=null,end=null;
+
+map.on("click", async e=>{
+  if(!start){
+    start=[e.latlng.lng,e.latlng.lat];
+  }
+  else if(!end){
+    end=[e.latlng.lng,e.latlng.lat];
+
+    let s1=findNearestStop(start);
+    let s2=findNearestStop(end);
+
+    // Guard against clicking the same area twice
+    if(s1.name === s2.name) {
+      alert("Start and End stops are the same!");
+      location.reload();
+      return;
+    }
+
+    // highlight
+    L.circleMarker([s1.lat,s1.lng],{radius:10,color:"#00ffcc"}).addTo(map);
+    L.circleMarker([s2.lat,s2.lng],{radius:10,color:"#ff4444"}).addTo(map);
+
+    let graph=buildGraph();
+    let path=dijkstra(graph,s1.name,s2.name);
+
+    // Guard against unreachable paths
+    if(path.length < 2) {
+      alert("No valid route exists between these stops.");
+      location.reload();
+      return;
+    }
+
+    let full=[],distSum=0,timeSum=0;
+
+    for(let i=0;i<path.length-1;i++){
+      let A=stops.find(s=>s.name===path[i]);
+      let B=stops.find(s=>s.name===path[i+1]);
+
+      try {
+        let res=await fetch("https://api.openrouteservice.org/v2/directions/driving-car/geojson",{
+          method:"POST",
+          headers:{
+            "Authorization":API_KEY,
+            "Content-Type":"application/json"
+          },
+          body:JSON.stringify({
+            coordinates:[[A.lng,A.lat],[B.lng,B.lat]]
+          })
+        });
+
+        let data=await res.json();
+        
+        // Proper API error handling
+        if(data.error) {
+           console.error("API Error:", data.error);
+           alert("OpenRouteService API Error. Key might be rate-limited or expired.");
+           break;
+        }
+
+        if(!data.features) continue;
+
+        let seg=data.features[0];
+        distSum+=seg.properties.summary.distance;
+        timeSum+=seg.properties.summary.duration;
+
+        seg.geometry.coordinates.forEach(c=>{
+          full.push([c[1],c[0]]);
+        });
+      } catch (err) {
+        console.error("Network Fetch Error:", err);
+      }
+    }
+
+    // Prevent crashing if the API returns no route
+    if(full.length === 0) {
+       alert("Failed to load map geometry from API. Please try again later.");
+       location.reload();
+       return;
+    }
+
+    L.polyline(full,{color:"#00ffcc",weight:6}).addTo(map);
+
+    document.getElementById("infoPanel").innerHTML+=`
+      <div class="route-card">
+        ${path.join(" → ")}<br>
+        ${(distSum/1000).toFixed(2)} km<br>
+        ${(timeSum/60).toFixed(2)} min
+      </div>
+    `;
+
+    // 2 buses
+    for(let i=0;i<2;i++){
+      let m=L.marker(full[0],{icon:busIcon}).addTo(map);
+      let idx=i*50;
+      setInterval(()=>{
+        idx=(idx+1)%full.length;
+        m.setLatLng(full[idx]);
+      },120);
+    }
+  }
+  else {
+    location.reload();
+  }
+});
+
+</script>
+</body>
+</html>
