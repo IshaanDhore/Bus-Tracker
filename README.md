@@ -1,4 +1,3 @@
-*Bus-Tracker
 🚌 Smart Bus Transport System
 A real-time, interactive web application designed to optimize urban commuting. This project uses Dijkstra's Algorithm to calculate the shortest path between bus stops and integrates the OpenRouteService API to provide actual road-network geometry, distance, and estimated travel times.
 
